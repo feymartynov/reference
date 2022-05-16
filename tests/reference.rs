@@ -52,7 +52,7 @@ fn iterate() {
 #[test]
 fn replace() {
     let reference = V1Reference::new(2);
-    let entry = reference.get_or_reserve(1).expect("Failed to reserve");
+    let mut entry = reference.get_or_reserve(1).expect("Failed to reserve");
     assert!((*entry).is_none());
 
     entry.replace(Foo::new(1));
@@ -68,7 +68,7 @@ fn replace() {
 #[test]
 fn update() {
     let reference = V1Reference::new(2);
-    let entry = reference.insert(Foo::new(1)).expect("Failed to insert");
+    let mut entry = reference.insert(Foo::new(1)).expect("Failed to insert");
 
     entry
         .update(|maybe_foo| match maybe_foo {

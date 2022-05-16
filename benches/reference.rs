@@ -52,7 +52,7 @@ impl Updater {
             while !is_halt_clone.load(Ordering::Relaxed) {
                 let id = rng.gen_range(1..(REFERENCE_SIZE as Id));
 
-                if let Some(entry) = reference.get(id) {
+                if let Some(mut entry) = reference.get(id) {
                     let _ = entry.update(|maybe_foo| {
                         if let Some(ref mut foo) = maybe_foo {
                             foo.name = format!("{}", rand::random::<i32>());

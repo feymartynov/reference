@@ -51,15 +51,14 @@ impl<T> Array<T> {
 
     pub fn get(&self, idx: usize) -> Option<&mut T> {
         if idx < self.len() {
-            Some(unsafe { self.get_unchecked(idx) })
+            Some(unsafe { self.get_mut_unchecked(idx) })
         } else {
             None
         }
     }
 
     #[allow(clippy::mut_from_ref)]
-    #[inline]
-    unsafe fn get_unchecked(&self, idx: usize) -> &mut T {
+    pub unsafe fn get_mut_unchecked(&self, idx: usize) -> &mut T {
         &mut *self.ptr.as_ptr().add(idx)
     }
 

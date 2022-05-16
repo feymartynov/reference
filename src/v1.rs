@@ -13,14 +13,7 @@ use crate::{Enterable, Error, Id, Identifiable, Referential};
 
 ///////////////////////////////////////////////////////////////////////////////
 
-pub struct Entry<'a, T>(&'a Option<T>);
-
-impl<'a, T> Entry<'a, T> {
-    // FIXME: This is harsh.
-    fn get_mut(&self) -> &mut Option<T> {
-        unsafe { &mut *((self.0 as *const Option<T>) as *mut Option<T>) }
-    }
-}
+pub struct Entry<'a, T>(&'a mut Option<T>);
 
 impl<'a, T> fmt::Debug for Entry<'a, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -40,16 +33,16 @@ impl<'a, T> Enterable<'a, T> for Entry<'a, T>
 where
     T: Send + Sync + Identifiable,
 {
-    fn update<F, E>(&self, f: F) -> Result<(), Error<T>>
+    fn update<F, E>(&mut self, f: F) -> Result<(), Error<T>>
     where
         F: Fn(&mut Option<T>) -> Result<(), E>,
         E: StdError + 'static,
     {
-        f(self.get_mut()).map_err(|err| Error::UpdateError(Box::new(err)))
+        f(self.0).map_err(|err| Error::UpdateError(Box::new(err)))
     }
 
-    fn replace(&self, item: T) {
-        *self.get_mut() = Some(item);
+    fn replace(&mut self, item: T) {
+        *self.0 = Some(item);
     }
 }
 
@@ -72,7 +65,7 @@ impl<T: Identifiable + 'static> Reference<T> {
 
         self.effective_len.fetch_add(1, AtomicOrdering::Relaxed);
         self.vids.write().insert(id, vid);
-        Ok(Entry(&self.items[vid]))
+        Ok(Entry(self.items.get(vid).unwrap()))
     }
 }
 
@@ -164,9 +157,9 @@ impl<'a, T: Identifiable> Iter<'a, T> {
 }
 
 impl<'a, T: Identifiable> Iterator for Iter<'a, T> {
-    type Item = Entry<'a, T>;
+    type Item = Option<&'a T>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(Entry)
+        self.inner.next().map(|item| item.as_ref())
     }
 }

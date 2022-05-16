@@ -13,20 +13,20 @@ pub trait Enterable<'a, T>: Deref<Target = Option<T>> + Send + Sync
 where
     T: Send + Sync + Identifiable,
 {
-    fn update<F, E>(&self, f: F) -> Result<(), Error<T>>
+    fn update<F, E>(&mut self, f: F) -> Result<(), Error<T>>
     where
         F: Fn(&mut Option<T>) -> Result<(), E>,
         E: StdError + 'static;
 
-    fn replace(&self, item: T);
+    fn replace(&mut self, item: T);
 }
 
 pub trait Referential<'a, T>: Send + Sync
 where
-    T: Send + Sync + Identifiable,
+    T: Send + Sync + Identifiable + 'a,
 {
     type Entry: Enterable<'a, T>;
-    type Iterator: Iterator<Item = Self::Entry> + 'a;
+    type Iterator: Iterator<Item = Option<&'a T>> + 'a;
 
     fn new(capacity: usize) -> Self;
     fn insert(&'a self, item: T) -> Result<Self::Entry, Error<T>>;

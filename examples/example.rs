@@ -74,14 +74,12 @@ fn main() {
             .expect("Failed to insert subject");
     }
 
-    for entry in CTX.products.iter() {
-        if let Some(ref product) = *entry {
-            let subject = (*product.subject).as_ref().expect("Missing subject");
+    for product in CTX.products.iter().filter_map(|e| e) {
+        let subject = (*product.subject).as_ref().expect("Missing subject");
 
-            println!(
-                "id: {}, name: {}, subject id: {}, subject_name: {}",
-                product.id, product.name, subject.id, subject.name,
-            );
-        }
+        println!(
+            "id: {}, name: {}, subject id: {}, subject_name: {}",
+            product.id, product.name, subject.id, subject.name,
+        );
     }
 }
