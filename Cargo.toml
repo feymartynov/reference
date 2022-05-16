@@ -1,0 +1,16 @@
+[package]
+name = "reference"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rustc-hash = "1.1"
+
+[dev-dependencies]
+bencher = "0.1"
+lazy_static = "1.4"
+rand = "0.8"
+
+[[bench]]
+name = "reference"
+harness = false
