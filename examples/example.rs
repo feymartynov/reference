@@ -1,35 +1,25 @@
-#[macro_use]
-extern crate lazy_static;
-
 use reference::v1::{Entry, Reference};
 use reference::{Id, Identifiable, Referential};
 
 const PRODUCTS_COUNT: usize = 10;
 const SUBJECTS_COUNT: usize = 3;
 
-lazy_static! {
-    static ref CTX: Ctx = Ctx {
-        products: Reference::new(PRODUCTS_COUNT),
-        subjects: Reference::new(SUBJECTS_COUNT),
-    };
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 
 #[derive(Debug)]
-struct Ctx {
-    products: Reference<Product>,
-    subjects: Reference<Subject>,
+struct Ctx<'a> {
+    products: Reference<'a, Product<'a>>,
+    subjects: Reference<'a, Subject>,
 }
 
 #[derive(Debug)]
-struct Product {
+struct Product<'a> {
     id: Id,
     name: String,
-    subject: Entry<'static, Subject>,
+    subject: Entry<'a, Subject>,
 }
 
-impl Identifiable for Product {
+impl<'a> Identifiable for Product<'a> {
     fn id(&self) -> Id {
         self.id
     }
@@ -50,13 +40,18 @@ impl Identifiable for Subject {
 ///////////////////////////////////////////////////////////////////////////////
 
 fn main() {
+    let ctx = Ctx {
+        products: Reference::new(PRODUCTS_COUNT),
+        subjects: Reference::new(SUBJECTS_COUNT),
+    };
+
     for id in 1..(PRODUCTS_COUNT as i32) {
-        let subject = CTX
+        let subject = ctx
             .subjects
             .get_or_reserve(id % 2 + 1)
             .expect("Failed to get or reserve subject");
 
-        CTX.products
+        ctx.products
             .insert(Product {
                 id,
                 name: format!("Product {id}"),
@@ -66,7 +61,7 @@ fn main() {
     }
 
     for id in 1..(SUBJECTS_COUNT as i32) {
-        CTX.subjects
+        ctx.subjects
             .insert(Subject {
                 id,
                 name: format!("Subject {id}"),
@@ -74,7 +69,7 @@ fn main() {
             .expect("Failed to insert subject");
     }
 
-    for product in CTX.products.iter().filter_map(|e| e) {
+    for product in ctx.products.iter().filter_map(|e| e) {
         let subject = (*product.subject).as_ref().expect("Missing subject");
 
         println!(

@@ -49,14 +49,15 @@ where
 ///////////////////////////////////////////////////////////////////////////////
 
 #[derive(Debug)]
-pub struct Reference<T: Identifiable + 'static> {
+pub struct Reference<'a, T: Identifiable + 'a> {
     items: Array<Option<T>>,
     vids: RwLock<FxHashMap<Id, usize>>,
     effective_len: AtomicUsize,
+    _phantom: std::marker::PhantomData<&'a T>,
 }
 
-impl<T: Identifiable + 'static> Reference<T> {
-    fn add(&self, id: Id, maybe_item: Option<T>) -> Result<Entry<'_, T>, Error<T>> {
+impl<'a, T: Identifiable + 'a> Reference<'a, T> {
+    fn add(&'a self, id: Id, maybe_item: Option<T>) -> Result<Entry<'a, T>, Error<T>> {
         let vid = self.items.len();
 
         self.items
@@ -69,7 +70,7 @@ impl<T: Identifiable + 'static> Reference<T> {
     }
 }
 
-impl<'a, T: Send + Sync + Identifiable + 'static> Referential<'a, T> for Reference<T> {
+impl<'a, T: Send + Sync + Identifiable + 'a> Referential<'a, T> for Reference<'a, T> {
     type Entry = Entry<'a, T>;
     type Iterator = Iter<'a, T>;
 
@@ -85,6 +86,7 @@ impl<'a, T: Send + Sync + Identifiable + 'static> Referential<'a, T> for Referen
             items,
             vids: RwLock::new(vids),
             effective_len: AtomicUsize::new(0),
+            _phantom: std::marker::PhantomData,
         }
     }
 

@@ -30,7 +30,7 @@ impl<T> Array<T> {
         }
     }
 
-    pub fn push(&self, item: T) -> Result<&'static mut T, Error> {
+    pub fn push(&self, item: T) -> Result<&mut T, Error> {
         let len = self.len();
 
         if len >= self.capacity {
@@ -88,13 +88,13 @@ impl<T> DerefMut for Array<T> {
     }
 }
 
-impl<T: fmt::Debug + 'static> fmt::Debug for Array<T> {
+impl<T: fmt::Debug> fmt::Debug for Array<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self.iter()).finish()
     }
 }
 
-impl<T: 'static> From<Vec<T>> for Array<T> {
+impl<T> From<Vec<T>> for Array<T> {
     fn from(items: Vec<T>) -> Self {
         let array = Self::new(items.len() + 1);
 

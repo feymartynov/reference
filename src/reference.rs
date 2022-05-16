@@ -11,7 +11,7 @@ pub trait Identifiable {
 
 pub trait Enterable<'a, T>: Deref<Target = Option<T>> + Send + Sync
 where
-    T: Send + Sync + Identifiable,
+    T: Send + Sync + Identifiable + 'a,
 {
     fn update<F, E>(&mut self, f: F) -> Result<(), Error<T>>
     where
