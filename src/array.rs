@@ -13,7 +13,7 @@ pub struct Array<T> {
     len: AtomicUsize,
 }
 
-impl<T> Array<T> {
+impl<T: 'static> Array<T> {
     pub fn new(capacity: usize) -> Self {
         let layout = Layout::array::<T>(capacity).unwrap();
         let ptr = unsafe { std::alloc::alloc(layout) };
@@ -49,7 +49,7 @@ impl<T> Array<T> {
         Ok(ptr)
     }
 
-    pub fn get(&self, idx: usize) -> Option<&mut T> {
+    pub fn get(&self, idx: usize) -> Option<&'static mut T> {
         if idx < self.len() {
             Some(unsafe { self.get_mut_unchecked(idx) })
         } else {
@@ -58,11 +58,11 @@ impl<T> Array<T> {
     }
 
     #[allow(clippy::mut_from_ref)]
-    pub unsafe fn get_mut_unchecked(&self, idx: usize) -> &mut T {
+    pub unsafe fn get_mut_unchecked(&self, idx: usize) -> &'static mut T {
         &mut *self.ptr.as_ptr().add(idx)
     }
 
-    pub fn iter(&self) -> Iter<'_, T> {
+    pub fn iter(&self) -> Iter<T> {
         Iter::new(self)
     }
 
@@ -74,7 +74,7 @@ impl<T> Array<T> {
 unsafe impl<T: Send> Send for Array<T> {}
 unsafe impl<T: Sync> Sync for Array<T> {}
 
-impl<T> Deref for Array<T> {
+impl<T: 'static> Deref for Array<T> {
     type Target = [T];
 
     fn deref(&self) -> &[T] {
@@ -82,19 +82,19 @@ impl<T> Deref for Array<T> {
     }
 }
 
-impl<T> DerefMut for Array<T> {
+impl<T: 'static> DerefMut for Array<T> {
     fn deref_mut(&mut self) -> &mut [T] {
         unsafe { std::slice::from_raw_parts_mut(self.ptr.as_ptr(), self.len()) }
     }
 }
 
-impl<T: fmt::Debug> fmt::Debug for Array<T> {
+impl<T: fmt::Debug + 'static> fmt::Debug for Array<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self.iter()).finish()
     }
 }
 
-impl<T> From<Vec<T>> for Array<T> {
+impl<T: 'static> From<Vec<T>> for Array<T> {
     fn from(items: Vec<T>) -> Self {
         let array = Self::new(items.len() + 1);
 
@@ -110,21 +110,23 @@ impl<T> From<Vec<T>> for Array<T> {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-pub struct Iter<'a, T> {
-    array: &'a Array<T>,
+pub struct Iter<T: 'static> {
+    array: &'static Array<T>,
     len: usize,
     idx: usize,
 }
 
-impl<'a, T> Iter<'a, T> {
-    fn new(array: &'a Array<T>) -> Self {
+impl<T: 'static> Iter<T> {
+    fn new(array: &Array<T>) -> Self {
         let len = array.len();
+        let ptr = array as *const Array<T>;
+        let array = unsafe { ptr.as_ref::<'static>() }.unwrap();
         Self { array, len, idx: 0 }
     }
 }
 
-impl<'a, T> Iterator for Iter<'a, T> {
-    type Item = &'a T;
+impl<T> Iterator for Iter<T> {
+    type Item = &'static T;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.idx < self.len {

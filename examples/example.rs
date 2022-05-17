@@ -7,19 +7,19 @@ const SUBJECTS_COUNT: usize = 3;
 ///////////////////////////////////////////////////////////////////////////////
 
 #[derive(Debug)]
-struct Ctx<'a> {
-    products: Reference<'a, Product<'a>>,
-    subjects: Reference<'a, Subject>,
+struct Ctx {
+    products: Reference<Product>,
+    subjects: Reference<Subject>,
 }
 
 #[derive(Debug)]
-struct Product<'a> {
+struct Product {
     id: Id,
     name: String,
-    subject: Entry<'a, Subject>,
+    subject: Entry<Subject>,
 }
 
-impl<'a> Identifiable for Product<'a> {
+impl<'a> Identifiable for Product {
     fn id(&self) -> Id {
         self.id
     }

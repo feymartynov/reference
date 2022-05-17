@@ -13,15 +13,15 @@ use crate::{Enterable, Error, Id, Identifiable, Referential};
 
 ///////////////////////////////////////////////////////////////////////////////
 
-pub struct Entry<'a, T>(&'a mut Option<T>);
+pub struct Entry<T: 'static>(&'static mut Option<T>);
 
-impl<'a, T> fmt::Debug for Entry<'a, T> {
+impl<'a, T> fmt::Debug for Entry<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Entry").finish()
     }
 }
 
-impl<'a, T> Deref for Entry<'a, T> {
+impl<'a, T> Deref for Entry<T> {
     type Target = Option<T>;
 
     fn deref(&self) -> &Self::Target {
@@ -29,9 +29,9 @@ impl<'a, T> Deref for Entry<'a, T> {
     }
 }
 
-impl<'a, T> Enterable<'a, T> for Entry<'a, T>
+impl<T> Enterable<T> for Entry<T>
 where
-    T: Send + Sync + Identifiable,
+    T: Send + Sync + Identifiable + 'static,
 {
     fn update<F, E>(&mut self, f: F) -> Result<(), Error<T>>
     where
@@ -49,15 +49,14 @@ where
 ///////////////////////////////////////////////////////////////////////////////
 
 #[derive(Debug)]
-pub struct Reference<'a, T: Identifiable + 'a> {
+pub struct Reference<T: Identifiable + 'static> {
     items: Array<Option<T>>,
     vids: RwLock<FxHashMap<Id, usize>>,
     effective_len: AtomicUsize,
-    _phantom: std::marker::PhantomData<&'a T>,
 }
 
-impl<'a, T: Identifiable + 'a> Reference<'a, T> {
-    fn add(&'a self, id: Id, maybe_item: Option<T>) -> Result<Entry<'a, T>, Error<T>> {
+impl<T: Identifiable + 'static> Reference<T> {
+    fn add(&self, id: Id, maybe_item: Option<T>) -> Result<Entry<T>, Error<T>> {
         let vid = self.items.len();
 
         self.items
@@ -70,9 +69,9 @@ impl<'a, T: Identifiable + 'a> Reference<'a, T> {
     }
 }
 
-impl<'a, T: Send + Sync + Identifiable + 'a> Referential<'a, T> for Reference<'a, T> {
-    type Entry = Entry<'a, T>;
-    type Iterator = Iter<'a, T>;
+impl<T: Send + Sync + Identifiable + 'static> Referential<T> for Reference<T> {
+    type Entry = Entry<T>;
+    type Iterator = Iter<T>;
 
     fn new(capacity: usize) -> Self {
         let items = Array::new(capacity);
@@ -86,11 +85,10 @@ impl<'a, T: Send + Sync + Identifiable + 'a> Referential<'a, T> for Reference<'a
             items,
             vids: RwLock::new(vids),
             effective_len: AtomicUsize::new(0),
-            _phantom: std::marker::PhantomData,
         }
     }
 
-    fn insert(&'a self, item: T) -> Result<Self::Entry, Error<T>> {
+    fn insert(&self, item: T) -> Result<Self::Entry, Error<T>> {
         let id = item.id();
 
         let maybe_existing_vid = {
@@ -121,45 +119,45 @@ impl<'a, T: Send + Sync + Identifiable + 'a> Referential<'a, T> for Reference<'a
         }
     }
 
-    fn get(&'a self, id: Id) -> Option<Self::Entry> {
+    fn get(&self, id: Id) -> Option<Self::Entry> {
         match self.vids.read().get(&id).copied() {
             None => None,
             Some(vid) => self.items.get(vid).map(|e| Entry(e)),
         }
     }
 
-    fn get_or_reserve(&'a self, id: Id) -> Result<Self::Entry, Error<T>> {
+    fn get_or_reserve(&self, id: Id) -> Result<Self::Entry, Error<T>> {
         match self.get(id) {
             Some(entry) => Ok(entry),
             None => self.add(id, None),
         }
     }
 
-    fn iter(&'a self) -> Self::Iterator {
+    fn iter(&self) -> Self::Iterator {
         Iter::new(self.items.iter())
     }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
-pub struct Iter<'a, T: Identifiable> {
-    inner: ArrayIter<'a, Option<T>>,
+pub struct Iter<T: Identifiable + 'static> {
+    inner: ArrayIter<Option<T>>,
 }
 
-impl<'a, T: Identifiable> fmt::Debug for Iter<'a, T> {
+impl<T: Identifiable> fmt::Debug for Iter<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Iter").finish()
     }
 }
 
-impl<'a, T: Identifiable> Iter<'a, T> {
-    fn new(inner: ArrayIter<'a, Option<T>>) -> Self {
+impl<T: Identifiable> Iter<T> {
+    fn new(inner: ArrayIter<Option<T>>) -> Self {
         Self { inner }
     }
 }
 
-impl<'a, T: Identifiable> Iterator for Iter<'a, T> {
-    type Item = Option<&'a T>;
+impl<T: Identifiable> Iterator for Iter<T> {
+    type Item = Option<&'static T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().map(|item| item.as_ref())
