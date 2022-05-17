@@ -5,10 +5,10 @@ use std::hash::BuildHasherDefault;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
 
+use parking_lot::RwLock;
 use rustc_hash::{FxHashMap, FxHasher};
 
 use crate::array::{Array, Iter as ArrayIter};
-use crate::sync::RwLock;
 use crate::{Enterable, Error, Id, Identifiable, Referential};
 
 ///////////////////////////////////////////////////////////////////////////////

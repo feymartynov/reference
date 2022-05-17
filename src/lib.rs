@@ -1,7 +1,6 @@
 mod array;
 mod error;
 pub mod reference;
-mod sync;
 pub mod v1;
 
 pub use self::error::Error;
