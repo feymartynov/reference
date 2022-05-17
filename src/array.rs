@@ -7,6 +7,14 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 ///////////////////////////////////////////////////////////////////////////////
 
+/// `Array<T>` is similar to `Vec<T>` which guarantees fixed memory location for each element
+/// until the end of the program.
+///
+/// Differences:
+/// - It can't grow its capacity. The capacity is preallocated on initialization.
+/// - It allows only pushing elements to the end. No removing, swapping etc.
+/// - It doesn't deallocate.
+/// - It allows dirty access.
 pub struct Array<T> {
     ptr: NonNull<T>,
     capacity: usize,
@@ -14,6 +22,7 @@ pub struct Array<T> {
 }
 
 impl<T: 'static> Array<T> {
+    /// Create an array of `T` with the given capacity. The capacity is being preallocated.
     pub fn new(capacity: usize) -> Self {
         let layout = Layout::array::<T>(capacity).unwrap();
         let ptr = unsafe { std::alloc::alloc(layout) };
@@ -30,6 +39,8 @@ impl<T: 'static> Array<T> {
         }
     }
 
+    /// Add an element to the end of the array.
+    /// Returns error in case of exceeded capacity.
     pub fn push(&self, item: T) -> Result<&mut T, Error> {
         let len = self.len();
 
@@ -49,7 +60,9 @@ impl<T: 'static> Array<T> {
         Ok(ptr)
     }
 
-    pub fn get(&self, idx: usize) -> Option<&'static mut T> {
+    /// Returns a mutable reference to an item with `idx` index.
+    /// If `idx` is out of bounds returns `None`.
+    pub fn get_mut(&self, idx: usize) -> Option<&'static mut T> {
         if idx < self.len() {
             Some(unsafe { self.get_mut_unchecked(idx) })
         } else {
@@ -57,15 +70,18 @@ impl<T: 'static> Array<T> {
         }
     }
 
+    /// Returns a mutable reference to an item without bounds checking.
     #[allow(clippy::mut_from_ref)]
     pub unsafe fn get_mut_unchecked(&self, idx: usize) -> &'static mut T {
         &mut *self.ptr.as_ptr().add(idx)
     }
 
+    /// Creates an iterator over items.
     pub fn iter(&self) -> Iter<T> {
         Iter::new(self)
     }
 
+    /// Returns the number of elements.
     pub fn len(&self) -> usize {
         self.len.load(Ordering::Relaxed)
     }
@@ -110,6 +126,7 @@ impl<T: 'static> From<Vec<T>> for Array<T> {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+/// Iterates over items of `Array<T>`.
 pub struct Iter<T: 'static> {
     array: &'static Array<T>,
     len: usize,
@@ -143,6 +160,7 @@ impl<T> Iterator for Iter<T> {
 
 #[derive(Debug)]
 pub enum Error {
+    /// Attempted to add an item to an `Array<T>` capacity of which is already filled.
     CapacityExceeded { capacity: usize },
 }
 

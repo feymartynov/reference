@@ -65,7 +65,7 @@ impl<T: Identifiable + 'static> Reference<T> {
 
         self.effective_len.fetch_add(1, AtomicOrdering::Relaxed);
         self.vids.write().insert(id, vid);
-        Ok(Entry(self.items.get(vid).unwrap()))
+        Ok(Entry(self.items.get_mut(vid).unwrap()))
     }
 }
 
@@ -108,7 +108,7 @@ impl<T: Send + Sync + Identifiable + 'static> Referential<T> for Reference<T> {
         match maybe_existing_vid {
             None => self.add(id, Some(item)),
             Some(vid) => {
-                let item_ref = self.items.get(vid).ok_or_else(|| {
+                let item_ref = self.items.get_mut(vid).ok_or_else(|| {
                     Error::InsertError(format!("Index {} is out of bounds", vid,))
                 })?;
 
@@ -122,7 +122,7 @@ impl<T: Send + Sync + Identifiable + 'static> Referential<T> for Reference<T> {
     fn get(&self, id: Id) -> Option<Self::Entry> {
         match self.vids.read().get(&id).copied() {
             None => None,
-            Some(vid) => self.items.get(vid).map(|e| Entry(e)),
+            Some(vid) => self.items.get_mut(vid).map(|e| Entry(e)),
         }
     }
 
