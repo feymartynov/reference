@@ -10,6 +10,7 @@ rustc-hash = "1.1"
 bencher = "0.1"
 lockfree = "0.5"
 nohash-hasher = "0.2"
+parking_lot = "0.12"
 rand = "0.8"
 
 [[bench]]
