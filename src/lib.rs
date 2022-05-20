@@ -1,6 +1,7 @@
 mod array;
 mod error;
 
+use std::any::type_name;
 use std::collections::HashMap;
 use std::error::Error as StdError;
 use std::fmt;
@@ -18,7 +19,7 @@ pub use self::error::Error;
 ///////////////////////////////////////////////////////////////////////////////
 
 /// Entity identifier.
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct Id<T> {
     id: i32,
     _phantom: PhantomData<T>,
@@ -56,6 +57,12 @@ impl<T> Eq for Id<T> {}
 impl<T> Hash for Id<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.id.hash(state);
+    }
+}
+
+impl<T> fmt::Debug for Id<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Id<{}>({})", type_name::<T>(), self.id)
     }
 }
 
