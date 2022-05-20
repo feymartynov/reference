@@ -31,6 +31,10 @@ impl<T> Id<T> {
             _phantom: PhantomData,
         }
     }
+
+    pub fn as_i32(self) -> i32 {
+        self.id
+    }
 }
 
 impl<T> Clone for Id<T> {
