@@ -28,15 +28,29 @@ pub trait Identifiable {
 /// An entry of `Referential`.
 /// Items of one `Referential` may refer to items of another by holding an entry in a field:
 ///
-/// ```ignore
+/// ```
+/// # use reference::{Id, Identifiable, Entry, Reference};
+/// #
 /// struct Subject {
 ///     id: Id,
 /// }
+/// #
+/// # impl Identifiable for Subject {
+/// #     fn id(&self) -> Id {
+/// #         self.id
+/// #     }
+/// # }
 ///
 /// struct Product {
 ///     id: Id,
 ///     subject: Entry<Subject>,
 /// }
+/// #
+/// # impl Identifiable for Product {
+/// #     fn id(&self) -> Id {
+/// #         self.id
+/// #     }
+/// # }
 ///
 /// struct Ctx {
 ///     products: Reference<Product>,
@@ -46,8 +60,44 @@ pub trait Identifiable {
 ///
 /// An entry can be dereferenced using `*` operator to access fields of the referred entity:
 ///
-/// ```ignore
-/// (*product.subject).unwrap().id
+/// ```
+/// # use reference::{Id, Identifiable, Entry, Reference};
+/// #
+/// # struct Subject {
+/// #     id: Id,
+/// # }
+/// #
+/// # impl Identifiable for Subject {
+/// #     fn id(&self) -> Id {
+/// #         self.id
+/// #     }
+/// # }
+/// #
+/// # struct Product {
+/// #     id: Id,
+/// #     subject: Entry<Subject>,
+/// # }
+/// #
+/// # impl Identifiable for Product {
+/// #     fn id(&self) -> Id {
+/// #         self.id
+/// #     }
+/// # }
+/// #
+/// # let subjects = Reference::new(2);
+/// # let subject_entry = subjects.insert(Subject { id: 1 }).unwrap();
+/// # let products = Reference::new(2);
+/// #
+/// # let product_entry = products
+/// #   .insert(Product {
+/// #        id: 100,
+/// #        subject: subject_entry,
+/// #   })
+/// #   .unwrap();
+/// #
+/// let product = product_entry.as_ref().unwrap();
+/// let subject = product.subject.as_ref().unwrap();
+/// assert_eq!(subject.id, 1);
 /// ```
 ///
 /// Also entry can be used to modify the referred entity using `update` or `replace` methods.
