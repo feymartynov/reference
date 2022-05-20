@@ -4,7 +4,8 @@ mod error;
 use std::collections::HashMap;
 use std::error::Error as StdError;
 use std::fmt;
-use std::hash::BuildHasherDefault;
+use std::hash::{BuildHasherDefault, Hash, Hasher};
+use std::marker::PhantomData;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
 
@@ -16,11 +17,67 @@ pub use self::error::Error;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-pub type Id = i32;
+/// Entity identifier.
+#[derive(Debug, Default)]
+pub struct Id<T> {
+    id: i32,
+    _phantom: PhantomData<T>,
+}
+
+impl<T> Id<T> {
+    pub fn new(id: i32) -> Self {
+        Self {
+            id,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<T> Clone for Id<T> {
+    fn clone(&self) -> Self {
+        Id::new(self.id)
+    }
+}
+
+impl<T> Copy for Id<T> {}
+
+impl<T> PartialEq for Id<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl<T> Eq for Id<T> {}
+
+impl<T> Hash for Id<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
+}
+
+impl<T> fmt::Display for Id<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.id)
+    }
+}
+
+impl<T> From<i32> for Id<T> {
+    fn from(id: i32) -> Self {
+        Self::new(id)
+    }
+}
+
+impl<T> Into<i32> for Id<T> {
+    fn into(self) -> i32 {
+        self.id
+    }
+}
 
 /// An entity which can be identified by id.
 pub trait Identifiable {
-    fn id(&self) -> Id;
+    fn id(&self) -> Id<Self>
+    where
+        Self: Sized;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -32,22 +89,22 @@ pub trait Identifiable {
 /// # use reference::{Id, Identifiable, Entry, Reference};
 /// #
 /// struct Subject {
-///     id: Id,
+///     id: Id<Self>,
 /// }
 /// #
 /// # impl Identifiable for Subject {
-/// #     fn id(&self) -> Id {
+/// #     fn id(&self) -> Id<Self> {
 /// #         self.id
 /// #     }
 /// # }
 ///
 /// struct Product {
-///     id: Id,
+///     id: Id<Self>,
 ///     subject: Entry<Subject>,
 /// }
 /// #
 /// # impl Identifiable for Product {
-/// #     fn id(&self) -> Id {
+/// #     fn id(&self) -> Id<Self> {
 /// #         self.id
 /// #     }
 /// # }
@@ -63,41 +120,43 @@ pub trait Identifiable {
 /// ```
 /// # use reference::{Id, Identifiable, Entry, Reference};
 /// #
+/// # #[derive(Debug)]
 /// # struct Subject {
-/// #     id: Id,
+/// #     id: Id<Self>,
 /// # }
 /// #
 /// # impl Identifiable for Subject {
-/// #     fn id(&self) -> Id {
+/// #     fn id(&self) -> Id<Self> {
 /// #         self.id
 /// #     }
 /// # }
 /// #
+/// # #[derive(Debug)]
 /// # struct Product {
-/// #     id: Id,
+/// #     id: Id<Self>,
 /// #     subject: Entry<Subject>,
 /// # }
 /// #
 /// # impl Identifiable for Product {
-/// #     fn id(&self) -> Id {
+/// #     fn id(&self) -> Id<Self> {
 /// #         self.id
 /// #     }
 /// # }
 /// #
 /// # let subjects = Reference::new(2);
-/// # let subject_entry = subjects.insert(Subject { id: 1 }).unwrap();
+/// # let subject_entry = subjects.insert(Subject { id: 1.into() }).unwrap();
 /// # let products = Reference::new(2);
 /// #
 /// # let product_entry = products
 /// #   .insert(Product {
-/// #        id: 100,
+/// #        id: 100.into(),
 /// #        subject: subject_entry,
 /// #   })
 /// #   .unwrap();
 /// #
 /// let product = product_entry.as_ref().unwrap();
 /// let subject = product.subject.as_ref().unwrap();
-/// assert_eq!(subject.id, 1);
+/// assert_eq!(subject.id, 1.into());
 /// ```
 ///
 /// Also entry can be used to modify the referred entity using `update` or `replace` methods.
@@ -144,7 +203,7 @@ impl<'a, T> Deref for Entry<T> {
 #[derive(Debug)]
 pub struct Reference<T: Identifiable + 'static> {
     items: Array<Option<T>>,
-    vids: RwLock<FxHashMap<Id, usize>>,
+    vids: RwLock<FxHashMap<Id<T>, usize>>,
     effective_len: AtomicUsize,
 }
 
@@ -156,7 +215,7 @@ impl<T: Identifiable + 'static> Reference<T> {
         let mut vids = HashMap::with_capacity_and_hasher(capacity, hasher);
 
         items.push(None).expect("Failed to insert zero element");
-        vids.insert(0, 0);
+        vids.insert(Id::from(0), 0);
 
         Self {
             items,
@@ -197,7 +256,7 @@ impl<T: Identifiable + 'static> Reference<T> {
         }
     }
 
-    fn add(&self, id: Id, maybe_item: Option<T>) -> Result<Entry<T>, Error<T>> {
+    fn add(&self, id: Id<T>, maybe_item: Option<T>) -> Result<Entry<T>, Error<T>> {
         let vid = self.items.len();
 
         self.items
@@ -210,7 +269,7 @@ impl<T: Identifiable + 'static> Reference<T> {
     }
 
     /// Gets an entry with the given `id`. Returns `None` if there's no item with this `id`.
-    pub fn get(&self, id: Id) -> Option<Entry<T>> {
+    pub fn get(&self, id: Id<T>) -> Option<Entry<T>> {
         match self.vids.read().get(&id).copied() {
             None => None,
             Some(vid) => self.items.get_mut(vid).map(|e| Entry(e)),
@@ -221,7 +280,7 @@ impl<T: Identifiable + 'static> Reference<T> {
     /// for the given `id`. The `Entry` may be set later using `replace` method.
     /// This method is useful when you want to fill the reference of dependent items first
     /// and add referred entities into another reference later.
-    pub fn get_or_reserve(&self, id: Id) -> Result<Entry<T>, Error<T>> {
+    pub fn get_or_reserve(&self, id: Id<T>) -> Result<Entry<T>, Error<T>> {
         match self.get(id) {
             Some(entry) => Ok(entry),
             None => self.add(id, None),

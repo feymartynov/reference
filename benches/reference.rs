@@ -16,12 +16,12 @@ const REFERENCE_SIZE: usize = 1_000_000;
 
 #[derive(Default)]
 struct Foo {
-    id: Id,
+    id: Id<Self>,
     name: String,
 }
 
 impl Foo {
-    fn new(id: Id) -> Self {
+    fn new(id: Id<Self>) -> Self {
         Self {
             id,
             ..Default::default()
@@ -30,7 +30,7 @@ impl Foo {
 }
 
 impl Identifiable for Foo {
-    fn id(&self) -> Id {
+    fn id(&self) -> Id<Self> {
         self.id
     }
 }
@@ -50,7 +50,7 @@ impl Updater {
             let mut rng = rand::thread_rng();
 
             while !is_halt_clone.load(Ordering::Relaxed) {
-                let id = rng.gen_range(1..(REFERENCE_SIZE as Id));
+                let id = rng.gen_range(1..(REFERENCE_SIZE as i32)).into();
 
                 if let Some(mut entry) = reference.get(id) {
                     let _ = entry.update(|maybe_entity| {
@@ -79,15 +79,17 @@ impl Drop for Updater {
 fn reference(bencher: &mut Bencher) {
     let reference = Arc::new(Reference::new(REFERENCE_SIZE));
 
-    for id in 1..(REFERENCE_SIZE as Id) {
-        reference.insert(Foo::new(id)).expect("Failed to insert");
+    for id in 1..(REFERENCE_SIZE as i32) {
+        reference
+            .insert(Foo::new(id.into()))
+            .expect("Failed to insert");
     }
 
     let _updater = Updater::start(reference.clone());
 
     bencher.iter(|| {
-        for id in 1..(REFERENCE_SIZE as Id) {
-            reference.get(id);
+        for id in 1..(REFERENCE_SIZE as i32) {
+            reference.get(id.into());
         }
     })
 }

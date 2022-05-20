@@ -13,25 +13,25 @@ struct Ctx {
 
 #[derive(Debug)]
 struct Product {
-    id: Id,
+    id: Id<Self>,
     name: String,
     subject: Entry<Subject>,
 }
 
 impl<'a> Identifiable for Product {
-    fn id(&self) -> Id {
+    fn id(&self) -> Id<Self> {
         self.id
     }
 }
 
 #[derive(Debug)]
 struct Subject {
-    id: Id,
+    id: Id<Self>,
     name: String,
 }
 
 impl Identifiable for Subject {
-    fn id(&self) -> Id {
+    fn id(&self) -> Id<Self> {
         self.id
     }
 }
@@ -47,12 +47,12 @@ fn main() {
     for id in 1..(PRODUCTS_COUNT as i32) {
         let subject = ctx
             .subjects
-            .get_or_reserve(id % 2 + 1)
+            .get_or_reserve(Id::new(id % 2 + 1))
             .expect("Failed to get or reserve subject");
 
         ctx.products
             .insert(Product {
-                id,
+                id: Id::new(id),
                 name: format!("Product {id}"),
                 subject,
             })
@@ -62,7 +62,7 @@ fn main() {
     for id in 1..(SUBJECTS_COUNT as i32) {
         ctx.subjects
             .insert(Subject {
-                id,
+                id: Id::new(id),
                 name: format!("Subject {id}"),
             })
             .expect("Failed to insert subject");

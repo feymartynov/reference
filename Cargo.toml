@@ -12,6 +12,7 @@ bencher = "0.1"
 lockfree = "0.5"
 nohash-hasher = "0.2"
 rand = "0.8"
+vector = { git = "https://github.com/feymartynov/vector-rs" }
 
 [[bench]]
 name = "id_index"
