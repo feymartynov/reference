@@ -78,9 +78,9 @@ impl<T> From<i32> for Id<T> {
     }
 }
 
-impl<T> Into<i32> for Id<T> {
-    fn into(self) -> i32 {
-        self.id
+impl<T> From<Id<T>> for i32 {
+    fn from(id: Id<T>) -> Self {
+        id.id
     }
 }
 
@@ -194,9 +194,9 @@ where
     }
 }
 
-impl<'a, T> fmt::Debug for Entry<T> {
+impl<'a, T: fmt::Debug> fmt::Debug for Entry<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Entry").finish()
+        write!(f, "Entry({:?})", self.0)
     }
 }
 
