@@ -8,7 +8,7 @@ use std::thread;
 
 use bencher::Bencher;
 use rand::prelude::*;
-use reference::{Enterable, Id, Identifiable, Referential, V1Reference};
+use reference::{Id, Identifiable, Reference};
 
 const REFERENCE_SIZE: usize = 1_000_000;
 
@@ -42,7 +42,7 @@ struct Updater {
 }
 
 impl Updater {
-    fn start(reference: Arc<V1Reference<Foo>>) -> Self {
+    fn start(reference: Arc<Reference<Foo>>) -> Self {
         let is_halt = Arc::new(AtomicBool::new(false));
         let is_halt_clone = is_halt.clone();
 
@@ -53,9 +53,9 @@ impl Updater {
                 let id = rng.gen_range(1..(REFERENCE_SIZE as Id));
 
                 if let Some(mut entry) = reference.get(id) {
-                    let _ = entry.update(|maybe_foo| {
-                        if let Some(ref mut foo) = maybe_foo {
-                            foo.name = format!("{}", rand::random::<i32>());
+                    let _ = entry.update(|maybe_entity| {
+                        if let Some(ref mut entity) = maybe_entity {
+                            entity.name = format!("{}", rand::random::<i32>());
                         }
 
                         Ok(()) as Result<(), Infallible>
@@ -77,7 +77,7 @@ impl Drop for Updater {
 ///////////////////////////////////////////////////////////////////////////////
 
 fn reference(bencher: &mut Bencher) {
-    let reference = Arc::new(V1Reference::new(REFERENCE_SIZE));
+    let reference = Arc::new(Reference::new(REFERENCE_SIZE));
 
     for id in 1..(REFERENCE_SIZE as Id) {
         reference.insert(Foo::new(id)).expect("Failed to insert");

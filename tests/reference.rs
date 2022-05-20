@@ -1,6 +1,6 @@
 use std::convert::Infallible;
 
-use reference::{Enterable, Id, Identifiable, Referential, V1Reference};
+use reference::{Id, Identifiable, Reference};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Foo {
@@ -25,7 +25,7 @@ impl Identifiable for Foo {
 
 #[test]
 fn insert_and_get() {
-    let reference = V1Reference::new(3);
+    let reference = Reference::new(3);
     reference.insert(Foo::new(1)).expect("Failed to insert 1");
     assert!((*reference.get(0).expect("Failed to get 0")).is_none());
     let item1 = reference.get(1).expect("Failed to get 1");
@@ -36,14 +36,14 @@ fn insert_and_get() {
 
 #[test]
 fn iterate() {
-    let reference = V1Reference::new(4);
+    let reference = Reference::new(4);
     reference.insert(Foo::new(1)).expect("Failed to insert 1");
     reference.insert(Foo::new(4)).expect("Failed to insert 4");
     reference.get_or_reserve(3).expect("Failed to reserve 3");
 
     let ids = reference
         .iter()
-        .map(|i| i.as_ref().map(|foo| foo.id))
+        .map(|maybe_entity| maybe_entity.as_ref().map(|entity| entity.id))
         .collect::<Vec<_>>();
 
     assert_eq!(ids, [None, Some(1), Some(4), None]);
@@ -51,7 +51,7 @@ fn iterate() {
 
 #[test]
 fn replace() {
-    let reference = V1Reference::new(2);
+    let reference = Reference::new(2);
     let mut entry = reference.get_or_reserve(1).expect("Failed to reserve");
     assert!((*entry).is_none());
 
@@ -67,14 +67,14 @@ fn replace() {
 
 #[test]
 fn update() {
-    let reference = V1Reference::new(2);
+    let reference = Reference::new(2);
     let mut entry = reference.insert(Foo::new(1)).expect("Failed to insert");
 
     entry
         .update(|maybe_foo| match maybe_foo {
             None => panic!("Entry is empty"),
-            Some(ref mut foo) => {
-                foo.name.push_str("foo");
+            Some(ref mut entity) => {
+                entity.name.push_str("foo");
                 Ok(()) as Result<(), Infallible>
             }
         })

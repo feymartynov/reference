@@ -1,5 +1,4 @@
-use reference::v1::{Entry, Reference};
-use reference::{Id, Identifiable, Referential};
+use reference::{Entry, Id, Identifiable, Reference};
 
 const PRODUCTS_COUNT: usize = 10;
 const SUBJECTS_COUNT: usize = 3;
