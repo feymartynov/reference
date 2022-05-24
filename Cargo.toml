@@ -15,6 +15,10 @@ rand = "0.8"
 vector = { git = "https://github.com/feymartynov/vector-rs" }
 
 [[bench]]
+name = "entry"
+harness = false
+
+[[bench]]
 name = "id_index"
 harness = false
 
