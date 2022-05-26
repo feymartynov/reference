@@ -17,7 +17,7 @@ rand = "0.8"
 vector = { git = "https://github.com/feymartynov/vector-rs" }
 
 [[bench]]
-name = "entry"
+name = "sync"
 harness = false
 
 [[bench]]
