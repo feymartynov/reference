@@ -1,10 +1,12 @@
 #[macro_use]
 extern crate bencher;
 
-use std::sync::Arc;
+use std::sync::{Arc, RwLock as StdRwLock};
 
+use arc_swap::ArcSwap;
 use bencher::Bencher;
-use parking_lot::RwLock;
+use crossbeam_utils::sync::ShardedLock;
+use parking_lot::RwLock as ParkingLotRwLock;
 
 const N: usize = 1000;
 
@@ -20,27 +22,58 @@ struct Entity {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct SafeEntry(Option<Entity>);
-
-fn entry_arc_rwlock(bencher: &mut Bencher) {
-    let entry = Arc::new(RwLock::new(SafeEntry(Some(Entity { id: 123 }))));
+fn entry_std_rwlock_arc(bencher: &mut Bencher) {
+    let entry = StdRwLock::new(Arc::new(Some(Entity { id: 123 })));
 
     bencher.iter(|| {
         for _ in 0..N {
-            let entry_clone = entry.clone();
-            let entry_lock = entry_clone.read();
-            let entity = (*entry_lock).0.as_ref().unwrap();
+            let entry_lock = entry.read().unwrap();
+            let entity = (**entry_lock).as_ref().unwrap();
             prevent_opt(entity.id);
         }
     });
 }
 
-////////////////////////////////////////////////////////////////////////////////
+fn entry_parking_lot_rwlock_arc(bencher: &mut Bencher) {
+    let entry = ParkingLotRwLock::new(Arc::new(Some(Entity { id: 123 })));
 
-struct UnsafeEntry(&'static mut Option<Entity>);
+    bencher.iter(|| {
+        for _ in 0..N {
+            let entry_lock = entry.read();
+            let entity = (**entry_lock).as_ref().unwrap();
+            prevent_opt(entity.id);
+        }
+    });
+}
 
-impl UnsafeEntry {
-    fn new(entity: &mut Option<Entity>) -> Self {
+fn entry_sharded_lock_arc(bencher: &mut Bencher) {
+    let entry = ShardedLock::new(Arc::new(Some(Entity { id: 123 })));
+
+    bencher.iter(|| {
+        for _ in 0..N {
+            let entry_lock = entry.read().unwrap();
+            let entity = (**entry_lock).as_ref().unwrap();
+            prevent_opt(entity.id);
+        }
+    });
+}
+
+fn entry_arc_swap(bencher: &mut Bencher) {
+    let entry = ArcSwap::from(Arc::new(Some(Entity { id: 123 })));
+
+    bencher.iter(|| {
+        for _ in 0..N {
+            let guard = entry.load();
+            let entity = (**guard).as_ref().unwrap();
+            prevent_opt(entity.id);
+        }
+    });
+}
+
+struct UnsafeEntry<'a>(&'a mut Option<Entity>);
+
+impl<'a> UnsafeEntry<'a> {
+    fn new(entity: &'a mut Option<Entity>) -> Self {
         let inner = unsafe {
             let ptr = entity as *mut Option<Entity>;
             ptr.as_mut::<'static>()
@@ -50,18 +83,18 @@ impl UnsafeEntry {
     }
 }
 
-impl Clone for UnsafeEntry {
+impl<'a> Clone for UnsafeEntry<'a> {
     fn clone(&self) -> Self {
         let inner = unsafe {
             let ptr = self.0 as *const Option<Entity> as *mut Option<Entity>;
-            ptr.as_mut::<'static>()
+            ptr.as_mut::<'a>()
         };
 
         Self(inner.unwrap())
     }
 }
 
-fn entry_unsafe_static_mut(bencher: &mut Bencher) {
+fn entry_unsafe_mut(bencher: &mut Bencher) {
     let mut entity = Some(Entity { id: 123 });
     let entry = UnsafeEntry::new(&mut entity);
 
@@ -76,5 +109,13 @@ fn entry_unsafe_static_mut(bencher: &mut Bencher) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-benchmark_group!(benches, entry_arc_rwlock, entry_unsafe_static_mut);
+benchmark_group!(
+    benches,
+    entry_std_rwlock_arc,
+    entry_parking_lot_rwlock_arc,
+    entry_sharded_lock_arc,
+    entry_arc_swap,
+    entry_unsafe_mut
+);
+
 benchmark_main!(benches);
