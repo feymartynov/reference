@@ -14,7 +14,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 /// - It can't grow its capacity. The capacity is preallocated on initialization.
 /// - It allows only pushing elements to the end. No removing, swapping etc.
 /// - It doesn't deallocate.
-/// - It allows dirty access.
 pub struct Array<T> {
     ptr: NonNull<T>,
     capacity: usize,
@@ -60,20 +59,20 @@ impl<T: 'static> Array<T> {
         Ok(ptr)
     }
 
-    /// Returns a mutable reference to an item with `idx` index.
+    /// Returns a reference to an item with `idx` index.
     /// If `idx` is out of bounds returns `None`.
-    pub fn get_mut(&self, idx: usize) -> Option<&'static mut T> {
+    pub fn get(&self, idx: usize) -> Option<&'static T> {
         if idx < self.len() {
-            Some(unsafe { self.get_mut_unchecked(idx) })
+            Some(unsafe { self.get_unchecked(idx) })
         } else {
             None
         }
     }
 
-    /// Returns a mutable reference to an item without bounds checking.
+    /// Returns a reference to an item without bounds checking.
     #[allow(clippy::mut_from_ref)]
-    pub unsafe fn get_mut_unchecked(&self, idx: usize) -> &'static mut T {
-        &mut *self.ptr.as_ptr().add(idx)
+    pub unsafe fn get_unchecked(&self, idx: usize) -> &'static T {
+        &*self.ptr.as_ptr().add(idx)
     }
 
     /// Creates an iterator over items.

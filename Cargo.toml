@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+arc-swap = "1.5"
 parking_lot = "0.12"
 rustc-hash = "1.1"
 
 [dev-dependencies]
-arc-swap = "1.5"
 bencher = "0.1"
 crossbeam-utils = "0.8"
 lockfree = "0.5"

@@ -1,7 +1,6 @@
 #[macro_use]
 extern crate bencher;
 
-use std::convert::Infallible;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -51,16 +50,9 @@ impl Updater {
 
             while !is_halt_clone.load(Ordering::Relaxed) {
                 let id = rng.gen_range(1..(REFERENCE_SIZE as i32)).into();
-
-                if let Some(mut entry) = reference.get(id) {
-                    let _ = entry.update(|maybe_entity| {
-                        if let Some(ref mut entity) = maybe_entity {
-                            entity.name = format!("{}", rand::random::<i32>());
-                        }
-
-                        Ok(()) as Result<(), Infallible>
-                    });
-                }
+                let mut entity = Foo::new(id);
+                entity.name = format!("{}", rand::random::<i32>());
+                reference.insert(entity).expect("Failed to replace");
             }
         });
 

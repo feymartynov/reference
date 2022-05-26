@@ -3,13 +3,13 @@ mod error;
 
 use std::any::type_name;
 use std::collections::HashMap;
-use std::error::Error as StdError;
 use std::fmt;
 use std::hash::{BuildHasherDefault, Hash, Hasher};
 use std::marker::PhantomData;
-use std::ops::Deref;
 use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
+use std::sync::Arc;
 
+use arc_swap::ArcSwapOption;
 use parking_lot::RwLock;
 use rustc_hash::{FxHashMap, FxHasher};
 
@@ -165,46 +165,21 @@ pub trait Identifiable {
 /// #   })
 /// #   .unwrap();
 /// #
-/// let product = product_entry.as_ref().unwrap();
-/// let subject = product.subject.as_ref().unwrap();
+/// let product = product_entry.load().unwrap();
+/// let subject = product.subject.load().unwrap();
 /// assert_eq!(subject.id, 1.into());
 /// ```
-///
-/// Also entry can be used to modify the referred entity using `update` or `replace` methods.
-pub struct Entry<T: 'static>(&'static mut Option<T>);
+pub struct Entry<T: 'static>(&'static ArcSwapOption<T>);
 
-impl<T> Entry<T>
-where
-    T: Send + Sync + Identifiable + 'static,
-{
-    /// Updates the referred entity with a closure.
-    /// The closure accepts a mutable reference to the referred entity as an `Option` and must
-    /// return the `Result` of the update.
-    pub fn update<F, E>(&mut self, f: F) -> Result<(), Error<T>>
-    where
-        F: Fn(&mut Option<T>) -> Result<(), E>,
-        E: StdError + 'static,
-    {
-        f(self.0).map_err(|err| Error::UpdateError(Box::new(err)))
-    }
-
-    /// Sets or replaces the referred entity with the new one.
-    pub fn replace(&mut self, item: T) {
-        *self.0 = Some(item);
+impl<T: 'static> Entry<T> {
+    pub fn load(&self) -> Option<Arc<T>> {
+        (*self.0.load()).as_ref().cloned()
     }
 }
 
-impl<'a, T: fmt::Debug> fmt::Debug for Entry<T> {
+impl<T: fmt::Debug> fmt::Debug for Entry<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Entry({:?})", self.0)
-    }
-}
-
-impl<'a, T> Deref for Entry<T> {
-    type Target = Option<T>;
-
-    fn deref(&self) -> &Self::Target {
-        self.0
     }
 }
 
@@ -213,7 +188,7 @@ impl<'a, T> Deref for Entry<T> {
 /// Entity storage of `T`.
 #[derive(Debug)]
 pub struct Reference<T: Identifiable + 'static> {
-    items: Array<Option<T>>,
+    items: Array<Arc<ArcSwapOption<T>>>,
     vids: RwLock<FxHashMap<Id<T>, usize>>,
     effective_len: AtomicUsize,
 }
@@ -225,7 +200,10 @@ impl<T: Identifiable + 'static> Reference<T> {
         let hasher = BuildHasherDefault::<FxHasher>::default();
         let mut vids = HashMap::with_capacity_and_hasher(capacity, hasher);
 
-        items.push(None).expect("Failed to insert zero element");
+        items
+            .push(Arc::new(ArcSwapOption::const_empty()))
+            .expect("Failed to insert zero element");
+
         vids.insert(Id::from(0), 0);
 
         Self {
@@ -256,13 +234,13 @@ impl<T: Identifiable + 'static> Reference<T> {
         match maybe_existing_vid {
             None => self.add(id, Some(item)),
             Some(vid) => {
-                let item_ref = self.items.get_mut(vid).ok_or_else(|| {
+                let existing_item = self.items.get(vid).ok_or_else(|| {
                     Error::InsertError(format!("Index {} is out of bounds", vid,))
                 })?;
 
-                *item_ref = Some(item);
+                existing_item.store(Some(Arc::new(item)));
                 self.effective_len.fetch_add(1, AtomicOrdering::Relaxed);
-                Ok(Entry(item_ref))
+                Ok(Entry(existing_item))
             }
         }
     }
@@ -271,19 +249,19 @@ impl<T: Identifiable + 'static> Reference<T> {
         let vid = self.items.len();
 
         self.items
-            .push(maybe_item)
+            .push(Arc::new(ArcSwapOption::from_pointee(maybe_item)))
             .map_err(|err| Error::Other(Box::new(err)))?;
 
         self.effective_len.fetch_add(1, AtomicOrdering::Relaxed);
         self.vids.write().insert(id, vid);
-        Ok(Entry(self.items.get_mut(vid).unwrap()))
+        Ok(Entry(self.items.get(vid).unwrap()))
     }
 
     /// Gets an entry with the given `id`. Returns `None` if there's no item with this `id`.
     pub fn get(&self, id: Id<T>) -> Option<Entry<T>> {
         match self.vids.read().get(&id).copied() {
             None => None,
-            Some(vid) => self.items.get_mut(vid).map(|e| Entry(e)),
+            Some(vid) => self.items.get(vid).map(|e| Entry(e)),
         }
     }
 
@@ -299,7 +277,7 @@ impl<T: Identifiable + 'static> Reference<T> {
     }
 
     /// Creates a reader iterator over items.
-    pub fn iter(&self) -> impl Iterator<Item = Option<&'static T>> {
+    pub fn iter(&self) -> impl Iterator<Item = Entry<T>> {
         Iter::new(self.items.iter())
     }
 }
@@ -307,25 +285,25 @@ impl<T: Identifiable + 'static> Reference<T> {
 ///////////////////////////////////////////////////////////////////////////////
 
 struct Iter<T: Identifiable + 'static> {
-    inner: ArrayIter<Option<T>>,
+    inner: ArrayIter<Arc<ArcSwapOption<T>>>,
 }
 
-impl<T: Identifiable> fmt::Debug for Iter<T> {
+impl<T: Identifiable + 'static> fmt::Debug for Iter<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Iter").finish()
     }
 }
 
-impl<T: Identifiable> Iter<T> {
-    fn new(inner: ArrayIter<Option<T>>) -> Self {
+impl<T: Identifiable + 'static> Iter<T> {
+    fn new(inner: ArrayIter<Arc<ArcSwapOption<T>>>) -> Self {
         Self { inner }
     }
 }
 
-impl<T: Identifiable> Iterator for Iter<T> {
-    type Item = Option<&'static T>;
+impl<T: Identifiable + 'static> Iterator for Iter<T> {
+    type Item = Entry<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(|item| item.as_ref())
+        self.inner.next().map(|e| Entry(e))
     }
 }

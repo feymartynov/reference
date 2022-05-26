@@ -1,5 +1,3 @@
-use std::convert::Infallible;
-
 use reference::{Id, Identifiable, Reference};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -28,9 +26,14 @@ fn insert_and_get() {
     let reference = Reference::new(3);
     let item = Foo::new(1.into());
     reference.insert(item).expect("Failed to insert 1");
-    assert!((*reference.get(0.into()).expect("Failed to get 0")).is_none());
-    let item1 = reference.get(1.into()).expect("Failed to get 1");
-    assert_eq!(*item1, Some(Foo::new(1.into())));
+
+    let item0 = reference.get(0.into()).expect("Failed to get 0").load();
+    assert!(item0.is_none());
+
+    let item1 = reference.get(1.into()).expect("Failed to get 1").load();
+    let entity = item1.expect("Entry 1 is empty");
+    assert_eq!(entity.id, 1.into());
+
     assert!(reference.get(2.into()).is_none());
     assert!(reference.get(3.into()).is_none());
 }
@@ -50,55 +53,41 @@ fn iterate() {
 
     let ids = reference
         .iter()
-        .map(|maybe_entity| maybe_entity.as_ref().map(|entity| entity.id))
+        .map(|maybe_entity| maybe_entity.load().map(|entity| entity.id))
         .collect::<Vec<_>>();
 
     assert_eq!(ids, [None, Some(1.into()), Some(4.into()), None]);
 }
 
 #[test]
-fn replace() {
+fn set_and_replace() {
     let reference = Reference::new(2);
 
-    let mut entry = reference
+    let entry1 = reference
         .get_or_reserve(1.into())
         .expect("Failed to reserve");
 
-    assert!((*entry).is_none());
+    assert!(entry1.load().is_none());
 
-    entry.replace(Foo::new(1.into()));
-    assert_eq!(*entry, Some(Foo::new(1.into())));
+    reference
+        .insert(Foo::new(1.into()))
+        .expect("Failed to set entity");
+
+    let entry2 = reference.get(1.into()).expect("Entry not found");
+
+    for entry in [&entry2, &entry1] {
+        let entity = entry.load().expect("Entry is empty");
+        assert_eq!(entity.id, 1.into());
+    }
 
     let mut other = Foo::new(1.into());
     other.name = "other".to_string();
-    entry.replace(other.clone());
-    assert_eq!(*entry, Some(other.clone()));
+    reference.insert(other).expect("Failed to replace entity");
 
-    assert_eq!(
-        *(reference.get(1.into()).expect("Failed to get 1")),
-        Some(other)
-    );
-}
+    let entry3 = reference.get(1.into()).expect("Entry not found");
 
-#[test]
-fn update() {
-    let reference = Reference::new(2);
-
-    let mut entry = reference
-        .insert(Foo::new(1.into()))
-        .expect("Failed to insert");
-
-    entry
-        .update(|maybe_foo| match maybe_foo {
-            None => panic!("Entry is empty"),
-            Some(ref mut entity) => {
-                entity.name.push_str("foo");
-                Ok(()) as Result<(), Infallible>
-            }
-        })
-        .expect("Failed to update");
-
-    assert_eq!(entry.as_ref().expect("Entry is empty").name, "foo");
-    let entry = reference.get(1.into()).expect("Failed to get");
-    assert_eq!(entry.as_ref().expect("Entry is empty").name, "foo");
+    for entry in [entry3, entry2, entry1] {
+        let entity = entry.load().expect("Entry is empty");
+        assert_eq!(entity.name, "other");
+    }
 }
